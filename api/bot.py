@@ -1,6 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext
-import json
 
 # Контент для дней
 COURSE_CONTENT = {
@@ -27,12 +26,53 @@ async def start(update: Update, context: CallbackContext) -> None:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Используем message из callback_query, если это не командный запрос
     if update.message:
         await update.message.reply_text("Выберите раздел:", reply_markup=reply_markup)
     else:
         await update.callback_query.message.reply_text("Выберите раздел:", reply_markup=reply_markup)
 
-# Функция для обработки нажатий
+# Функция для отображения основной информации
+async def show_info(update: Update, context: CallbackContext) -> None:
+    info_text = "Здесь будет информация о курсе. Вы можете добавить любые данные, например, цели курса, описание и т.д."
+    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="back_to_main")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.callback_query.message.reply_text(info_text, reply_markup=reply_markup)
+
+# Функция для отображения материалов курса (с кнопками для каждого дня)
+async def show_course_materials(update: Update, context: CallbackContext) -> None:
+    keyboard = [
+        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(1, 8)], # Кнопки с 1 по 7 день
+        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(8, 15)], # Кнопки с 8 по 14 день
+        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(15, 22)], # Кнопки с 15 по 21 день
+        [InlineKeyboardButton("Главное меню", callback_data="back_to_main")]  # Кнопка назад
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.reply_text("Выберите день:", reply_markup=reply_markup)
+
+# Функция для отображения полезных ссылок
+async def show_useful_links(update: Update, context: CallbackContext) -> None:
+    links_text = "\n".join([f"{key} - [Ссылка]({url})" for key, url in USEFUL_LINKS.items()])
+    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="back_to_main")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.reply_text(links_text, reply_markup=reply_markup, parse_mode="Markdown")
+
+# Функция для отображения информации о выбранном дне
+async def show_day_content(update: Update, context: CallbackContext) -> None:
+    day = int(update.callback_query.data.split("_")[1])  # Извлекаем номер дня
+    content = COURSE_CONTENT.get(day, "Контент для этого дня пока не готов.")
+    
+    # Сохраняем текущее состояние
+    context.user_data['last_menu'] = 'course_materials'  # Запоминаем, что мы находимся в меню "Материалы курса"
+    
+    keyboard = [
+        [InlineKeyboardButton("Назад", callback_data="back_to_materials")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.edit_text(content, parse_mode="Markdown", reply_markup=reply_markup)
+
+# Функция для обработки нажатия кнопок
 async def button_handler(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
     await query.answer()
@@ -44,70 +84,24 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
     elif query.data == "useful_links":
         await show_useful_links(update, context)
     elif query.data == "back_to_main":
-        await start(update, context)
+        await start(update, context)  # Возвращаемся в главное меню
     elif query.data.startswith("day_"):
-        await show_day_content(update, context)
+        await show_day_content(update, context)  # Переходим к контенту выбранного дня
     elif query.data == "back_to_materials":
+        # Переходим обратно в меню "Материалы курса"
         await show_course_materials(update, context)
 
-# Функции для показа информации
-async def show_info(update: Update, context: CallbackContext) -> None:
-    info_text = "Здесь будет информация о курсе. Вы можете добавить любые данные."
-    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="back_to_main")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.message.reply_text(info_text, reply_markup=reply_markup)
-
-async def show_course_materials(update: Update, context: CallbackContext) -> None:
-    keyboard = [
-        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(1, 8)],
-        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(8, 15)],
-        [InlineKeyboardButton(f"День {i}", callback_data=f"day_{i}") for i in range(15, 22)],
-        [InlineKeyboardButton("Главное меню", callback_data="back_to_main")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.message.reply_text("Выберите день:", reply_markup=reply_markup)
-
-async def show_useful_links(update: Update, context: CallbackContext) -> None:
-    links_text = "\n".join([f"{key} - [Ссылка]({url})" for key, url in USEFUL_LINKS.items()])
-    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="back_to_main")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.message.reply_text(links_text, reply_markup=reply_markup, parse_mode="Markdown")
-
-async def show_day_content(update: Update, context: CallbackContext) -> None:
-    day = int(update.callback_query.data.split("_")[1])  # Извлекаем номер дня
-    content = COURSE_CONTENT.get(day, "Контент для этого дня пока не готов.")
-    keyboard = [
-        [InlineKeyboardButton("Назад", callback_data="back_to_materials")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.message.edit_text(content, parse_mode="Markdown", reply_markup=reply_markup)
-
-# Функция для регистрации вебхука
-def set_webhook(bot):
-    webhook_url = 'https://your-app-name.vercel.app/api/bot'  # Замените на URL вашего развернутого приложения
-    bot.set_webhook(webhook_url)
-
-# Функция для работы с вебхуком на Vercel
-def handler(request):
-    if request.method == "POST":
-        json_data = request.json
-        update = Update.de_json(json_data, bot)
-        application.update_queue.put(update)
-    return "ok", 200
-
+# Главная функция
 def main():
-    from telegram import Bot
+    # Вставьте ваш токен здесь
+    application = Application.builder().token("7065830886:AAGNCiwEcYl5SM7gUbAaBEHzxUghTwOVbrc").build()
 
-    TELEGRAM_TOKEN = 'ваш_токен_бота'
-    bot = Bot(TELEGRAM_TOKEN)
-    set_webhook(bot)
-
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-
+    # Обработчики команд и кнопок
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    application.run_webhook(listen="0.0.0.0", port=80)
+    # Запуск бота
+    application.run_polling()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
